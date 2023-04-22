@@ -15,19 +15,14 @@ func RegisterUser(context *gin.Context) {
 		context.Abort()
 		return
 	}
-
-	if err := user.HashPassword(user.Password); err != nil {
-		context.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	db := Config.ConnectToDB()
+	defer db.Close()
+	_, err := db.Query("insert into users(Name, Username, Email, Password) values(?,?,?,?)", user.Name, user.Username, user.Email, user.Password)
+	if err != nil {
+		context.JSON(http.StatusBadRequest, err)
 		context.Abort()
 		return
 	}
 
-	record := Config.DB.Create(&user)
-	if record.Error != nil {
-		context.JSON(http.StatusInternalServerError, gin.H{"error": record.Error.Error()})
-		context.Abort()
-		return
-	}
-
-	context.JSON(http.StatusCreated, gin.H{"userId": user.ID, "email": user.Email, "username": user.Username})
+	context.JSON(http.StatusCreated, "Success........")
 }

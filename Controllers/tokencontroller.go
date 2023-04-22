@@ -1,48 +1,69 @@
 package Controllers
 
 import (
-	"go-todo-app/Config"
-	"go-todo-app/Models"
-	"go-todo-app/auth"
+	"encoding/json"
 	"net/http"
+	"time"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 )
 
-type TokenRequest struct {
-	Email    string `json:"email"`
+// logging and authorization
+var jwtKey = []byte("secret_key")
+
+var users = map[string]string{
+	"user1": "password1",
+	"user2": "password2",
+}
+
+type Credentials struct {
+	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
-func GenerateToken(context *gin.Context) {
-	var request TokenRequest
-	var user Models.User
-	if err := context.ShouldBindJSON(&request); err != nil {
-		context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		context.Abort()
-		return
-	}
+type Claims struct {
+	Username string `json:"username"`
+	jwt.StandardClaims
+}
 
-	// check if email exists and password is correct
-	record := Config.DB.Where("email = ?", request.Email).First(&user)
-	if record.Error != nil {
-		context.JSON(http.StatusInternalServerError, gin.H{"error": record.Error.Error()})
-		context.Abort()
-		return
-	}
-
-	credentialError := user.CheckPassword(request.Password)
-	if credentialError != nil {
-		context.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-		context.Abort()
-		return
-	}
-
-	tokenString, err := auth.GenerateJWT(user.Email, user.Username)
+func Login(c *gin.Context) {
+	var credentials Credentials
+	err := json.NewDecoder(c.Request.Body).Decode(&credentials)
 	if err != nil {
-		context.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		context.Abort()
+		c.Writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	context.JSON(http.StatusOK, gin.H{"token": tokenString})
+
+	expectedPassword, ok := users[credentials.Username]
+
+	if !ok || expectedPassword != credentials.Password {
+		c.Writer.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	expirationTime := time.Now().Add(time.Minute * 5)
+
+	claims := &Claims{
+		Username: credentials.Username,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: expirationTime.Unix(),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(jwtKey)
+
+	if err != nil {
+		c.Writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	http.SetCookie(c.Writer,
+		&http.Cookie{
+			Name:    "token",
+			Value:   tokenString,
+			Expires: expirationTime,
+		})
+
 }
