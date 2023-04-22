@@ -1,39 +1,31 @@
 package Config
 
 import (
+	"database/sql"
 	"fmt"
-
-	"github.com/jinzhu/gorm"
 )
 
-var DB *gorm.DB
-
-type DBConfig struct {
-	Host     string
-	Port     int
-	User     string
-	DBName   string
-	Password string
-}
-
-func BuildDBConfig() *DBConfig {
-	dbConfig := DBConfig{
-		Host:     "0.0.0.0",
-		Port:     3306,
-		User:     "root",
-		DBName:   "todo",
-		Password: "123456",
+// ConnectToDB connects to the database --> orders
+func ConnectToDB() *sql.DB {
+	db, err := sql.Open("mysql", "root:Ranjith@tcp(localhost:3306)/sachindb")
+	if err != nil {
+		fmt.Println(err)
+		return nil
 	}
-	return &dbConfig
+	fmt.Println("Connected to DB Successfully....... ")
+	return db
 }
 
-func DbURL(dbConfig *DBConfig) string {
-	return fmt.Sprintf(
-		"%s:%s@tcp(%s:%d)/%s?charset=utf8&parseTime=True&loc=Local",
-		dbConfig.User,
-		dbConfig.Password,
-		dbConfig.Host,
-		dbConfig.Port,
-		dbConfig.DBName,
-	)
+// NewTable creates new table if the table not exist
+func NewTable() {
+	db := ConnectToDB()
+	defer db.Close()
+	_, err := db.Query("CREATE TABLE IF NOT EXISTS users(Name varchar(20) UNIQUE NOT NULL, Username varchar(20) NOT NULL, Email varchar(20) NOT NULL, Password varchar(20) NOT NULL)")
+	if err != nil {
+		fmt.Println(err)
+	}
+	_, e := db.Query("CREATE TABLE IF NOT EXISTS todo(ID int(5) UNIQUE NOT NULL, Title varchar(20) NOT NULL, Description varchar(20))")
+	if e != nil {
+		fmt.Println(e)
+	}
 }
